@@ -38,7 +38,13 @@ def api_post(path, data):
 # The request method should use the string f"{API_URL}{path}/{id}" to access the correct path,
 # where id refers to the id number of the question to be deleted. 
 def api_delete(path, id):
-    pass
+    try:
+        response = requests.delete(f"{API_URL}{path}/{id}", timeout=5)
+        response.raise_for_status()
+        return True
+    except requests.RequestException as e:
+        ui.notify(f"Could not reach API: {e}", type="negative")
+        return False
 
 # TODO: Create api_put function that attempts to send a PUT request to the API.
 # The request method should use the string f"{API_URL}{path}/{id}" to access the correct path,
@@ -46,28 +52,45 @@ def api_delete(path, id):
 # to this function must be sent with the request so that the API knows the updated values to add 
 # to the dataset (similar to how data is sent in api_post).
 def api_put(path, id, data):
-    pass
+    try:
+        response = requests.put(f"{API_URL}{path}/{id}", json=data, timeout=5)
+        response.raise_for_status()
+        return True
+    except requests.RequestException as e:
+        ui.notify(f"Could not reach API: {e}", type="negative")
+        return False
 
 # TODO: Add edit and delete buttons dynamically to each question card. 
 def render_question(question):
-    with ui.card() as card:
-        card.on("click", lambda: toggle_answer(question["id"]))
-        ui.label(question["q"])
+    with ui.dialog() as dialog, ui.card():
+        updated_question = ui.textarea(label="Question", value=question["q"])
+        updated_answer = ui.textarea(label="Answer", value=question["a"])
+        ui.button("Update Question", on_click=lambda:[
+            dialog.close(), api_put("/update", question["id"], {
+                "question": updated_question.value, "answer": updated_answer.value}), render_page()
+    
+        ])
+    with ui.card().classes("w-[700px]") as card:
+        card.on("click", lambda: toggle_answer(question))
+        ui.label(question["q"]).classes("text-lg font-bold")
         ui.label(question["a"]).classes("text-s text-green font-bold").bind_visibility_from(question["state"], "show_answer")
-
-def toggle_answer(i):
-    questions[i]["state"]["show_answer"] = not questions[i]["state"]["show_answer"]
+        with ui.row():
+            ui.button(text="Delete", color="negative", on_click=lambda: [api_delete("/delete", question["id"]), render_page()])
+            ui.button(text="Edit", on_click=dialog.open)
+def toggle_answer(question):
+    question["state"]["show_answer"] = not question["state"]["show_answer"]
 
 def add_new_question(question, answer):
     api_post("/add", {"question": question, "answer": answer})
     render_page()
 
 def render_text_inputs():
-    new_question_input = ui.input(label="New question").props("clearable")
-    new_answer_input = ui.input(label="New answer").props("clearable")
-    add_question_btn = ui.button(text="Add question", on_click=lambda: add_new_question(
-        question=new_question_input.value,
-        answer=new_answer_input.value
+    with ui.card():
+        new_question_input = ui.input(label="New question").props("clearable")
+        new_answer_input = ui.input(label="New answer").props("clearable")
+        add_question_btn = ui.button(text="Add question", on_click=lambda: add_new_question(
+            question=new_question_input.value,
+            answer=new_answer_input.value
     ))
 
 def init_page():
